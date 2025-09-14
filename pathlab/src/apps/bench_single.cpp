@@ -11,12 +11,21 @@
 #include "pathlab/queues/heap_pq.hpp"
 #include "pathlab/queues/stoc_pq.hpp"
 #include "pathlab/ll/dijkstra.hpp"
+#include "pathlab/queues/bucket_pq.hpp"  // <-- bucket PQ
 
 using namespace pathlab;
 
-static std::unique_ptr<IPQ> make_pq(const std::string& name, uint32_t stoc_block) {
-  if (name == "heap") return std::make_unique<HeapPQ>();
-  if (name == "stoc") return std::make_unique<STOCPQ>(stoc_block);
+// allow_diag 여부에 따라 W(최대 가중치) 결정: 10/14 스케일 가정
+static std::unique_ptr<IPQ> make_pq(const std::string& name,
+                                    uint32_t stoc_block,
+                                    bool allow_diag) {
+  if (name == "heap")   return std::make_unique<HeapPQ>();
+  if (name == "stoc")   return std::make_unique<STOCPQ>(stoc_block);
+  if (name == "bucket") {
+    uint32_t W = allow_diag ? 14u : 10u;
+    return std::make_unique<BucketPQ>(W);
+  }
+  // 기본은 heap
   return std::make_unique<HeapPQ>();
 }
 
@@ -35,10 +44,22 @@ static uint32_t reconstruct_steps(const DijkstraResult& R, NodeId s, NodeId g) {
   return steps;                          // 경로 셀 개수 - 1
 }
 
+// 10/14 스케일에서 steps, dist로 직선/대각 분해
+static inline void split_steps_10_14(uint32_t steps, uint32_t dist,
+                                     uint32_t& straight, uint32_t& diag) {
+  // steps = H + D, dist = 10*H + 14*D
+  // => 4*D = dist - 10*steps
+  int64_t tmp = (int64_t)dist - 10LL * (int64_t)steps;
+  if (tmp < 0) { straight = steps; diag = 0; return; }
+  diag = (uint32_t)(tmp / 4);
+  if (diag > steps) diag = steps;
+  straight = steps - diag;
+}
+
 int main(int argc, char** argv) {
   if (argc < 5) {
     std::fprintf(stderr,
-      "usage: bench_single <map> <scen> <pq:heap|stoc> <cases>\n"
+      "usage: bench_single <map> <scen> <pq:heap|stoc|bucket> <cases>\n"
       "       [allow_diag=1] [stoc_block=256]\n");
     return 1;
   }
@@ -53,7 +74,7 @@ int main(int argc, char** argv) {
   auto S = load_scen(scen_path);
   if (cases <= 0 || cases > (int)S.size()) cases = (int)S.size();
 
-  auto pq = make_pq(pq_name, stoc_block);
+  auto pq = make_pq(pq_name, stoc_block, allow_diag != 0);
 
   uint64_t total_ms = 0;
   for (int i=0;i<cases;++i) {
@@ -69,14 +90,16 @@ int main(int argc, char** argv) {
     total_ms += ms;
 
     const uint32_t steps = reconstruct_steps(R, s, g);
+    uint32_t hv = 0, dg = 0;
+    split_steps_10_14(steps, (uint32_t)R.dist[g], hv, dg);
 
     std::printf(
-      "case=%d start=(%d,%d) goal=(%d,%d) dist=%u steps=%u time=%llums | "
+      "case=%d start=(%d,%d) goal=(%d,%d) dist=%u steps=%u (H=%u,D=%u) time=%llums | "
       "PQ push=%llu pop=%llu dec=%llu scans=%llu moves=%llu | "
       "algo relax=%llu improved=%llu settled=%llu\n",
       i, c.sx, c.sy, c.gx, c.gy,
       (unsigned)R.dist[g],
-      (unsigned)steps,
+      (unsigned)steps, (unsigned)hv, (unsigned)dg,
       (unsigned long long)ms,
       (unsigned long long)R.pq.pushes,
       (unsigned long long)R.pq.pops,       // expand ~= pop

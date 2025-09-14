@@ -1,0 +1,27 @@
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j"$(nproc)"
+
+
+./build/bench_single <map> <scen> <pq:heap|stoc> <cases> [allow_diag=1] [block=256]
+
+./build/bench_single   pathlab/data/maps/Berlin_1_256.map   pathlab/data/scen/Berlin_1_256-even-1.scen   heap 100 1  
+
+./build/bench_single pathlab/data/maps/Berlin_1_256.map pathlab/data/scen/Berlin_1_256-even-1.scen stoc 100 1 512
+
+./build/bench_single   pathlab/data/maps/Berlin_1_256.map   pathlab/data/scen/Berlin_1_256-even-1.scen bucket 10 1
+
+
+
+./build/bench_single pathlab/data/maps/Berlin_1_256.map \
+                     pathlab/data/scen/Berlin_1_256-even-1.scen \
+                     heap 500 1 > logs/berlin_heap_500.txt 2>&1
+
+
+./build/bench_single pathlab/data/maps/Berlin_1_256.map \
+                     pathlab/data/scen/Berlin_1_256-even-1.scen \
+                     stoc 500 1 512 > logs/berlin_stoc_500.txt 2>&1
+
+
+./build/bench_single pathlab/data/maps/Berlin_1_256.map \
+                     pathlab/data/scen/Berlin_1_256-even-1.scen \
+                     bucket 500 1 > logs/berlin_bucket_500.txt 2>&1

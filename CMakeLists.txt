@@ -11,6 +11,7 @@ add_library(pathlab_core
   pathlab/src/queues/heap_pq.cpp
   pathlab/src/queues/stoc_pq.cpp
   pathlab/src/ll/dijkstra.cpp
+  pathlab/src/queues/bucket_pq.cpp
 )
 target_include_directories(pathlab_core PUBLIC ${PATHLAB_INC})
 
